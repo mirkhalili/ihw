@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS personnel (
  extra JSON NULL,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
- INDEX idx_personnel_name(full_name), INDEX idx_personnel_department(department)
+ INDEX idx_personnel_name(full_name), INDEX idx_personnel_department(department), INDEX idx_personnel_national_id(national_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS assets (
@@ -51,10 +51,11 @@ CREATE TABLE IF NOT EXISTS assets (
  updated_by BIGINT UNSIGNED NULL,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+ CONSTRAINT chk_asset_no_7_digits CHECK (asset_no REGEXP '^[0-9]{7}$'),
  FOREIGN KEY (personnel_id) REFERENCES personnel(id) ON DELETE SET NULL,
  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
  FOREIGN KEY (updated_by) REFERENCES users(id) ON DELETE SET NULL,
- INDEX idx_assets_type(asset_type), INDEX idx_assets_personnel(personnel_id), INDEX idx_assets_hostname(hostname), INDEX idx_assets_serial(serial_no)
+ INDEX idx_assets_type(asset_type), INDEX idx_assets_personnel(personnel_id), INDEX idx_assets_hostname(hostname), INDEX idx_assets_serial(serial_no), INDEX idx_assets_status(status), INDEX idx_assets_updated(updated_at)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS asset_disks (
@@ -100,7 +101,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
  details JSON NULL,
  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
  FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL,
- INDEX idx_audit_created(created_at), INDEX idx_audit_action(action), INDEX idx_audit_entity(entity_type,entity_id)
+ INDEX idx_audit_created(created_at), INDEX idx_audit_action(action), INDEX idx_audit_entity(entity_type,entity_id), INDEX idx_audit_user(user_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS import_batches (
