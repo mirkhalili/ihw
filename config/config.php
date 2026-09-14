@@ -8,9 +8,9 @@ return [
         'timezone' => 'Asia/Tehran',
     ],
     'db' => [
-        'dsn' => getenv('IHW_DB_DSN') ?: 'mysql:host=127.0.0.1;dbname=personnel;charset=utf8mb4',
-        'user' => getenv('IHW_DB_USER') ?: 'root',
-        'pass' => getenv('IHW_DB_PASS') ?: '',
+        'dsn' => getenv('IHW_DB_DSN') ?: 'mysql:host=127.0.0.1;dbname=ihw;charset=utf8mb4',
+        'user' => getenv('IHW_DB_USER') ?: 'ihw',
+        'pass' => getenv('IHW_DB_PASS') ?: 'ihw@1405',
         'options' => [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
