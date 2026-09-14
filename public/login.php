@@ -1,15 +1,5 @@
 <?php
-require __DIR__.'/../app/bootstrap.php';
-if (user()) redirect('index.php');
-$error=null;
-if ($_SERVER['REQUEST_METHOD']==='POST') {
-    verify_csrf();
-    $username=trim((string)($_POST['username']??'')); $password=(string)($_POST['password']??'');
-    $st=db()->prepare('SELECT u.*,r.name role,r.title role_title FROM users u JOIN roles r ON r.id=u.role_id WHERE u.username=? LIMIT 1');
-    $st->execute([$username]); $u=$st->fetch();
-    if($u && (int)$u['is_active']===1 && password_verify($password,$u['password_hash'])) {
-        session_regenerate_id(true); unset($u['password_hash']); $_SESSION['user']=$u; audit('login','user',(string)$u['id']); redirect('index.php');
-    }
-    $error='نام کاربری یا رمز عبور نادرست است.';
-}
-?><!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ورود | سامانه سخت‌افزار</title><link rel="stylesheet" href="assets/app.css"></head><body class="auth-page"><main class="auth-card"><div class="brand-mark">IHW</div><h1>سامانه سخت‌افزار</h1><p>دانشگاه آزاد اسلامی واحد یزد</p><?php if($error):?><div class="alert danger"><?=e($error)?></div><?php endif;?><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><label>نام کاربری<input name="username" autocomplete="username" required autofocus></label><label>رمز عبور<input type="password" name="password" autocomplete="current-password" required></label><button class="btn primary wide">ورود به سامانه</button></form></main></body></html>
+require __DIR__.'/../app/bootstrap.php';if(user())redirect('index.php');$error=null;
+if($_SERVER['REQUEST_METHOD']==='POST'){verify_csrf();$username=trim((string)($_POST['username']??''));$password=(string)($_POST['password']??'');$_SESSION['_login_attempts']=$_SESSION['_login_attempts']??[];$_SESSION['_login_attempts']=array_values(array_filter($_SESSION['_login_attempts'],fn($t)=>(time()-$t)<600));if(count($_SESSION['_login_attempts'])>=8){$error='تعداد تلاش‌های ورود بیش از حد مجاز است. چند دقیقه بعد دوباره تلاش کنید.';}else{$st=db()->prepare('SELECT u.*,r.name role,r.title role_title FROM users u JOIN roles r ON r.id=u.role_id WHERE u.username=? LIMIT 1');$st->execute([$username]);$u=$st->fetch();if($u&&(int)$u['is_active']===1&&password_verify($password,$u['password_hash'])){$_SESSION['_login_attempts']=[];session_regenerate_id(true);if(password_needs_rehash($u['password_hash'],PASSWORD_DEFAULT)){db()->prepare('UPDATE users SET password_hash=? WHERE id=?')->execute([password_hash($password,PASSWORD_DEFAULT),$u['id']]);}$hash=$u['password_hash'];unset($u['password_hash']);$_SESSION['user']=$u;audit('login','user',(string)$u['id']);redirect('index.php');}$ _SESSION_PLACEHOLDER;}}
+?>
+<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ورود | سامانه سخت‌افزار</title><link rel="stylesheet" href="assets/app.css"></head><body class="auth-page"><main class="auth-card"><div class="brand-mark">IHW</div><h1>سامانه سخت‌افزار</h1><p>دانشگاه آزاد اسلامی واحد یزد</p><?php if($error):?><div class="alert danger"><?=e($error)?></div><?php endif;?><form method="post"><input type="hidden" name="_csrf" value="<?=e(csrf_token())?>"><label>نام کاربری<input name="username" autocomplete="username" required autofocus></label><label>رمز عبور<input type="password" name="password" autocomplete="current-password" required></label><button class="btn primary wide">ورود به سامانه</button></form></main></body></html>
