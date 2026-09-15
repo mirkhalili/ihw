@@ -2,6 +2,13 @@
 declare(strict_types=1);
 
 final class CsvImporter {
+    /** Fields whose pipe-delimited values are stored as JSON arrays. */
+    private const ARRAY_FIELDS = [
+        'IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers',
+        'RAMManufacturers','RAMPartNumbers','RAMSerialNumbers','RAMSpeedsMHz',
+        'DiskModels','DiskSizesGB','DiskSerials','DiskInterfaces',
+    ];
+
     public function rows(string $path): Generator {
         $h = fopen($path, 'rb');
         if (!$h) throw new RuntimeException('CSV قابل خواندن نیست.');
@@ -16,7 +23,8 @@ final class CsvImporter {
         while (($row = fgetcsv($h, 0, $delimiter)) !== false) {
             if (count($row) === 1 && trim((string)$row[0]) === '') continue;
             $row = array_pad($row, count($headers), '');
-            yield array_combine($headers, array_slice($row, 0, count($headers)));
+            $record = array_combine($headers, array_slice($row, 0, count($headers)));
+            yield $this->normalizeRow($record ?: []);
         }
         fclose($h);
     }
@@ -33,31 +41,55 @@ final class CsvImporter {
         return array_values(array_filter(array_map('trim', preg_split('/\s*\|\s*/u', $value) ?: []), fn($v) => $v !== ''));
     }
 
+    /** Convert pipe-delimited CSV fields to arrays so the application persists valid JSON. */
+    public function normalizeRow(array $row): array {
+        foreach (self::ARRAY_FIELDS as $key) {
+            if (!array_key_exists($key, $row)) continue;
+            $value = $row[$key];
+            if (is_array($value)) continue;
+            $value = trim((string)$value);
+            $row[$key] = str_contains($value, '|') ? $this->split($value) : ($value === '' ? [] : [$value]);
+        }
+        return $row;
+    }
+
+    public static function arrayFields(): array { return self::ARRAY_FIELDS; }
+
     public function disks(array $r): array {
         $explicit = ['DiskModels','DiskSizesGB','DiskSerials','DiskInterfaces'];
-        if (array_filter($explicit, fn($k) => isset($r[$k]) && trim((string)$r[$k]) !== '')) {
-            $models=$this->split((string)($r['DiskModels']??'')); $sizes=$this->split((string)($r['DiskSizesGB']??''));
-            $serials=$this->split((string)($r['DiskSerials']??'')); $interfaces=$this->split((string)($r['DiskInterfaces']??''));
+        if (array_filter($explicit, fn($k) => isset($r[$k]) && ((is_array($r[$k]) && $r[$k]) || trim((string)$r[$k]) !== ''))) {
+            $models=$this->asList($r['DiskModels']??[]); $sizes=$this->asList($r['DiskSizesGB']??[]);
+            $serials=$this->asList($r['DiskSerials']??[]); $interfaces=$this->asList($r['DiskInterfaces']??[]);
             $n=max(count($models),count($sizes),count($serials),count($interfaces)); $out=[];
-            for($i=0;$i<$n;$i++) $out[]=['index'=>$i+1,'model'=>$models[$i]??null,'size_gb'=>$this->number($sizes[$i]??null),'serial_no'=>$serials[$i]??null,'interface'=>$interfaces[$i]??null];
+            for($i=0;$i<$n;$i++) $out[]=['index'=>$i+1,'model'=>$models[$i]??null,'size_gb'=>$this->number($sizes[$i]??null),'serial_no'=>$serials[$i]??null,'interface'=>$interfaces[$i]??null,'media'=>null];
             return $out;
         }
         return $this->parseDiskDetails((string)($r['DiskDetails'] ?? ''));
     }
 
+    private function asList(mixed $value): array {
+        if (is_array($value)) return array_values(array_filter(array_map('trim', $value), fn($v) => $v !== ''));
+        return $this->split((string)$value);
+    }
+
     private function parseDiskDetails(string $value): array {
         $value=trim($value); if($value==='') return [];
-        $records=preg_split('/\s*,\s*(?=[A-Za-z0-9][^,]*?\/\s*[0-9]+(?:\.[0-9]+)?\s*GB)/u',$value) ?: [$value];
+        // A disk record starts with a model followed by / <number> GB. This keeps commas in later fields from swallowing the next disk.
+        $records=preg_split('/\s*,\s*(?=[^,\/]+\s*\/\s*[0-9]+(?:\.[0-9]+)?\s*GB\b)/iu',$value) ?: [$value];
         $out=[];
         foreach($records as $i=>$text) {
-            $item=['index'=>$i+1,'model'=>null,'size_gb'=>null,'serial_no'=>null,'interface'=>null,'media'=>null,'raw'=>trim($text)];
-            if(preg_match('/^\s*(.*?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)\s*GB\s*\/\s*Serial\s*:\s*([^\/]+?)\s*\/\s*Interface\s*:\s*([^,\/]+)(?:\s*\/\s*Media\s*:\s*(.*))?$/iu',trim($text),$m)) {
-                $item['model']=trim($m[1]); $item['size_gb']=$this->number($m[2]); $item['serial_no']=trim($m[3]); $item['interface']=trim($m[4]); $item['media']=isset($m[5])?trim($m[5]):null;
+            $text=trim($text);
+            $item=['index'=>$i+1,'model'=>null,'size_gb'=>null,'serial_no'=>null,'interface'=>null,'media'=>null,'raw'=>$text];
+            if(preg_match('/^\s*(.*?)\s*\/\s*([0-9]+(?:\.[0-9]+)?)\s*GB\s*(?:\/\s*Serial\s*:\s*([^\/]+?))?(?:\s*\/\s*Interface\s*:\s*([^,\/]+))?(?:\s*\/\s*Media\s*:\s*([^,]+))?\s*$/iu',$text,$m)) {
+                $item['model']=trim($m[1]); $item['size_gb']=$this->number($m[2]);
+                $item['serial_no']=isset($m[3])&&trim($m[3])!==''?trim($m[3]):null;
+                $item['interface']=isset($m[4])&&trim($m[4])!==''?trim($m[4]):null;
+                $item['media']=isset($m[5])&&trim($m[5])!==''?trim($m[5]):null;
             } else {
-                if(preg_match('/^\s*([^\/]+)\s*\/\s*([0-9]+(?:\.[0-9]+)?)\s*GB/i',trim($text),$m)){ $item['model']=trim($m[1]); $item['size_gb']=$this->number($m[2]); }
+                if(preg_match('/^\s*([^\/]+)\s*\/\s*([0-9]+(?:\.[0-9]+)?)\s*GB/i',$text,$m)){ $item['model']=trim($m[1]); $item['size_gb']=$this->number($m[2]); }
                 if(preg_match('/Serial\s*:\s*([^\/]+)/i',$text,$m)) $item['serial_no']=trim($m[1]);
                 if(preg_match('/Interface\s*:\s*([^,\/]+)/i',$text,$m)) $item['interface']=trim($m[1]);
-                if(preg_match('/Media\s*:\s*(.+)$/i',$text,$m)) $item['media']=trim($m[1]);
+                if(preg_match('/Media\s*:\s*([^,\/]+)/i',$text,$m)) $item['media']=trim($m[1]);
             }
             $out[]=$item;
         }
@@ -77,5 +109,5 @@ final class CsvImporter {
         return $out;
     }
 
-    private function number(?string $value): ?float { if($value===null || trim($value)==='') return null; return is_numeric(str_replace(',','',trim($value))) ? (float)str_replace(',','',trim($value)) : null; }
+    private function number(mixed $value): ?float { if($value===null || trim((string)$value)==='') return null; $v=str_replace(',','',trim((string)$value)); return is_numeric($v) ? (float)$v : null; }
 }
