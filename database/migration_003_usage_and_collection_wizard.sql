@@ -17,5 +17,3 @@ ALTER TABLE assets
   ADD COLUMN IF NOT EXISTS longest_session_hours DECIMAL(12,2) NULL,
   ADD COLUMN IF NOT EXISTS longest_session_duration VARCHAR(100) NULL,
   ADD COLUMN IF NOT EXISTS collected_at VARCHAR(80) NULL;
-
-CREATE INDEX IF NOT EXISTS idx_assets_usage ON assets(asset_type, unexpected_shutdown_count, collected_at);
