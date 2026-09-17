@@ -1,6 +1,6 @@
 -- Registration history for hardware collection/approval.
--- CollectedAt is retained from the CSV/usage collection data; registered_at,
--- registered_ip and registered_by record the final approval/registration event.
+-- Version 0.1.0.1: CollectedAt is retained from CSV/usage collection data;
+-- registered_at, registered_ip and registered_by record final registration.
 CREATE TABLE IF NOT EXISTS registration_history (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     asset_no CHAR(7) NOT NULL,
