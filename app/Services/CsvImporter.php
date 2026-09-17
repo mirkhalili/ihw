@@ -7,6 +7,7 @@ final class CsvImporter {
         'IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers',
         'RAMManufacturers','RAMPartNumbers','RAMSerialNumbers','RAMSpeedsMHz',
         'DiskModels','DiskSizesGB','DiskSerials','DiskInterfaces',
+        'PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','ScannerNames','ScannerManufacturers',
     ];
 
     public function rows(string $path): Generator {
@@ -41,15 +42,53 @@ final class CsvImporter {
         return array_values(array_filter(array_map('trim', preg_split('/\s*\|\s*/u', $value) ?: []), fn($v) => $v !== ''));
     }
 
-    /** Convert pipe-delimited CSV fields to arrays so the application persists valid JSON. */
+    /** Convert pipe-delimited CSV fields to arrays and normalize printer/scanner details. */
     public function normalizeRow(array $row): array {
         foreach (self::ARRAY_FIELDS as $key) {
             if (!array_key_exists($key, $row)) continue;
             $value = $row[$key];
             if (is_array($value)) continue;
             $value = trim((string)$value);
-            $row[$key] = str_contains($value, '|') ? $this->split($value) : ($value === '' ? [] : [$value]);
+            if (in_array($key, ['PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','ScannerNames','ScannerManufacturers'], true)) {
+                $row[$key] = $this->commaList($value);
+            } else {
+                $row[$key] = str_contains($value, '|') ? $this->split($value) : ($value === '' ? [] : [$value]);
+            }
         }
+        $row = $this->normalizePrinterData($row);
+        $row = $this->normalizeScannerData($row);
+        return $row;
+    }
+
+    private function commaList(string $value): array {
+        if ($value === '') return [];
+        return array_values(array_filter(array_map('trim', preg_split('/\s*,\s*/u', $value) ?: []), fn($v) => $v !== ''));
+    }
+
+    private function normalizePrinterData(array $row): array {
+        if (!array_key_exists('PrinterDetails', $row)) return $row;
+        $details = trim((string)$row['PrinterDetails']);
+        if ($details === '') return $row;
+        $records = array_values(array_filter(array_map('trim', preg_split('/\s*\|\|\s*/u', $details) ?: []), fn($v) => $v !== ''));
+        $kept = [];
+        foreach ($records as $record) {
+            $name = trim((string)preg_split('/\s*\/\s*/u', $record, 2)[0]);
+            if ($name !== '' && preg_match('/\bAdobe\b/i', $name)) continue;
+            $kept[] = $record;
+        }
+        $row['PrinterDetails'] = implode(' || ', $kept);
+        if (!isset($row['PrinterCount']) || trim((string)$row['PrinterCount']) === '') $row['PrinterCount'] = count($kept);
+        if (isset($row['DefaultPrinterName']) && preg_match('/\bAdobe\b/i', (string)$row['DefaultPrinterName'])) $row['DefaultPrinterName'] = '';
+        return $row;
+    }
+
+    private function normalizeScannerData(array $row): array {
+        if (!array_key_exists('ScannerDetails', $row)) return $row;
+        $details = trim((string)$row['ScannerDetails']);
+        if ($details === '') return $row;
+        $records = array_values(array_filter(array_map('trim', preg_split('/\s*\|\|\s*/u', $details) ?: []), fn($v) => $v !== ''));
+        $row['ScannerDetails'] = implode(' || ', $records);
+        if (!isset($row['ScannerCount']) || trim((string)$row['ScannerCount']) === '') $row['ScannerCount'] = count($records);
         return $row;
     }
 
@@ -74,7 +113,6 @@ final class CsvImporter {
 
     private function parseDiskDetails(string $value): array {
         $value=trim($value); if($value==='') return [];
-        // A disk record starts with a model followed by / <number> GB. This keeps commas in later fields from swallowing the next disk.
         $records=preg_split('/\s*,\s*(?=[^,\/]+\s*\/\s*[0-9]+(?:\.[0-9]+)?\s*GB\b)/iu',$value) ?: [$value];
         $out=[];
         foreach($records as $i=>$text) {
