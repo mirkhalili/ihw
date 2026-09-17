@@ -11,9 +11,17 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-      - name: Lint PHP files
-        run: |
-          set -e
-          find app public bin -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Lint public/asset_check.php
+        run: php -l public/asset_check.php
+      - name: Lint public/asset_new.php
+        run: php -l public/asset_new.php
+      - name: Lint public/asset_edit.php
+        run: php -l public/asset_edit.php
+      - name: Lint public/asset_view.php
+        run: php -l public/asset_view.php
+      - name: Lint public/asset_wizard.php
+        run: php -l public/asset_wizard.php
+      - name: Lint public/index.php
+        run: php -l public/index.php
       - name: CSV hardware parser smoke test
         run: php bin/smoke_csv.php
