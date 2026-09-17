@@ -1,5 +1,7 @@
 USE ihw;
 
+-- Adds usage/collection fields to existing installations.
+-- Safe to run repeatedly on MariaDB/MySQL versions supporting IF NOT EXISTS.
 ALTER TABLE assets
   ADD COLUMN IF NOT EXISTS boot_count INT NULL,
   ADD COLUMN IF NOT EXISTS normal_shutdown_count INT NULL,
