@@ -1,6 +1,6 @@
 -- Registration history for hardware collection/approval.
--- CollectedAt remains the source collection timestamp; this table records when,
--- from which IP, and by which authenticated user the final registration happened.
+-- CollectedAt is retained from the CSV/usage collection data; registered_at,
+-- registered_ip and registered_by record the final approval/registration event.
 CREATE TABLE IF NOT EXISTS registration_history (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     asset_no CHAR(7) NOT NULL,
@@ -14,3 +14,27 @@ CREATE TABLE IF NOT EXISTS registration_history (
     CONSTRAINT fk_registration_history_asset FOREIGN KEY (asset_no) REFERENCES assets(asset_no) ON DELETE CASCADE,
     CONSTRAINT fk_registration_history_user FOREIGN KEY (registered_by) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+DROP TRIGGER IF EXISTS trg_assets_registration_history;
+DELIMITER $$
+CREATE TRIGGER trg_assets_registration_history
+AFTER INSERT ON assets
+FOR EACH ROW
+BEGIN
+    INSERT INTO registration_history(asset_no,collected_at,registered_at,registered_ip,registered_by)
+    VALUES(NEW.asset_no,NULL,CURRENT_TIMESTAMP,@ihw_client_ip,IFNULL(@ihw_user_id,NEW.created_by));
+END$$
+DELIMITER ;
+
+DROP TRIGGER IF EXISTS trg_usage_stats_registration_collected_at;
+DELIMITER $$
+CREATE TRIGGER trg_usage_stats_registration_collected_at
+AFTER INSERT ON usage_stats
+FOR EACH ROW
+BEGIN
+    UPDATE registration_history
+    SET collected_at=NEW.collected_at
+    WHERE asset_no=NEW.asset_no
+      AND id=(SELECT rid FROM (SELECT MAX(id) AS rid FROM registration_history WHERE asset_no=NEW.asset_no) x);
+END$$
+DELIMITER ;
