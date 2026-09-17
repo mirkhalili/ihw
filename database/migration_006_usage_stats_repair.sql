@@ -2,8 +2,10 @@ USE ihw;
 
 -- Repairs installations where migration_004 was not executed completely.
 -- Safe to run repeatedly.
+-- IMPORTANT: assets.asset_no is CHAR(7) under utf8mb4_general_ci in the
+-- existing production schema, so the child key must use the same definition.
 CREATE TABLE IF NOT EXISTS usage_stats (
-  asset_no CHAR(7) PRIMARY KEY,
+  asset_no CHAR(7) NOT NULL,
   boot_count INT NULL,
   normal_shutdown_count INT NULL,
   unexpected_shutdown_count INT NULL,
@@ -20,8 +22,9 @@ CREATE TABLE IF NOT EXISTS usage_stats (
   longest_session_hours DECIMAL(12,2) NULL,
   longest_session_duration VARCHAR(100) NULL,
   collected_at DATETIME NULL,
+  PRIMARY KEY (asset_no),
   CONSTRAINT fk_usage_stats_asset_repair FOREIGN KEY (asset_no) REFERENCES assets(asset_no) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 INSERT INTO usage_stats (
   asset_no, boot_count, normal_shutdown_count, unexpected_shutdown_count, user_shutdown_count,
