@@ -7,6 +7,7 @@ final class CsvImporter {
         'IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers',
         'RAMManufacturers','RAMPartNumbers','RAMSerialNumbers','RAMSpeedsMHz',
         'DiskModels','DiskSizesGB','DiskSerials','DiskInterfaces',
+        'PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','PrinterIPAddresses','PrinterMACAddresses','ScannerNames','ScannerManufacturers',
     ];
 
     public function rows(string $path): Generator {
@@ -41,16 +42,159 @@ final class CsvImporter {
         return array_values(array_filter(array_map('trim', preg_split('/\s*\|\s*/u', $value) ?: []), fn($v) => $v !== ''));
     }
 
-    /** Convert pipe-delimited CSV fields to arrays so the application persists valid JSON. */
+    /** Convert pipe-delimited CSV fields to arrays and normalize printer/scanner details. */
     public function normalizeRow(array $row): array {
         foreach (self::ARRAY_FIELDS as $key) {
             if (!array_key_exists($key, $row)) continue;
             $value = $row[$key];
             if (is_array($value)) continue;
             $value = trim((string)$value);
-            $row[$key] = str_contains($value, '|') ? $this->split($value) : ($value === '' ? [] : [$value]);
+            if (in_array($key, ['PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','ScannerNames','ScannerManufacturers'], true)) {
+                $row[$key] = $this->commaList($value);
+            } else {
+                $row[$key] = str_contains($value, '|') ? $this->split($value) : ($value === '' ? [] : [$value]);
+            }
+        }
+        foreach ([
+            'PrinterName' => 'PrinterNames',
+            'PrinterPort' => 'PrinterPorts',
+            'PrinterDriver' => 'PrinterDrivers',
+            'DuplexPrinter' => 'DuplexPrinters',
+            'PrinterIPAddress' => 'PrinterIPAddresses',
+            'PrinterMACAddress' => 'PrinterMACAddresses',
+        ] as $singular => $plural) {
+            if (!array_key_exists($plural, $row) && array_key_exists($singular, $row)) {
+                $row[$plural] = $row[$singular];
+            }
+        }
+        $row = $this->normalizePrinterData($row);
+        $row = $this->normalizeNetworkData($row);
+        $row = $this->normalizeScannerData($row);
+        return $row;
+    }
+
+    private function commaList(string $value): array {
+        if ($value === '') return [];
+        return array_values(array_filter(array_map('trim', preg_split('/\s*,\s*/u', $value) ?: []), fn($v) => $v !== ''));
+    }
+
+    private function normalizePrinterData(array $row): array {
+        $detailsValue = $row['PrinterDetails'] ?? '';
+        $details = is_array($detailsValue) ? implode(' || ', array_map('strval', $detailsValue)) : trim((string)$detailsValue);
+        $records = $details === '' ? [] : array_values(array_filter(
+            array_map('trim', preg_split('/\s*\|\|\s*/u', $details) ?: []),
+            fn($v) => $v !== ''
+        ));
+
+        $names = $this->listValue($row['PrinterNames'] ?? []);
+        $ports = $this->listValue($row['PrinterPorts'] ?? []);
+        $drivers = $this->listValue($row['PrinterDrivers'] ?? []);
+        $duplex = $this->listValue($row['DuplexPrinters'] ?? []);
+
+        $kept = [];
+        foreach ($records as $record) {
+            $parsed = $this->parsePrinterRecord($record);
+            $name = $parsed['name'];
+            if ($name !== '' && $this->isWindowsVirtualPrinter($name)) continue;
+            $kept[] = $record;
+        }
+
+        foreach ($kept as $i => $record) {
+            $parsed = $this->parsePrinterRecord($record);
+            if ($parsed['name'] !== '' && !isset($names[$i])) $names[$i] = $parsed['name'];
+            if ($parsed['driver'] !== '' && !isset($drivers[$i])) $drivers[$i] = $parsed['driver'];
+            if ($parsed['port'] !== '' && !isset($ports[$i])) $ports[$i] = $parsed['port'];
+            if ($parsed['duplex'] !== '' && !isset($duplex[$i])) $duplex[$i] = $parsed['duplex'];
+        }
+
+        $row['PrinterDetails'] = implode(' || ', $kept);
+        $row['PrinterNames'] = $this->filterPrinterList($names);
+        $row['PrinterPorts'] = array_values($ports);
+        $row['PrinterDrivers'] = array_values($drivers);
+        $row['DuplexPrinters'] = array_values($duplex);
+
+        $row['PrinterCount'] = max(
+            count($kept), count($row['PrinterNames']), count($row['PrinterPorts']),
+            count($row['PrinterDrivers']), count($row['DuplexPrinters'])
+        );
+
+        if (isset($row['DefaultPrinterName'])) {
+            $default = is_array($row['DefaultPrinterName'])
+                ? (string)($row['DefaultPrinterName'][0] ?? '')
+                : trim((string)$row['DefaultPrinterName']);
+            $row['DefaultPrinterName'] = $this->isWindowsVirtualPrinter($default) ? '' : $default;
         }
         return $row;
+    }
+
+    private function listValue(mixed $value): array {
+        if (is_array($value)) {
+            return array_values(array_filter(array_map(fn($v) => trim((string)$v), $value), fn($v) => $v !== ''));
+        }
+        return $this->commaList(trim((string)$value));
+    }
+
+    private function filterPrinterList(array $values): array {
+        return array_values(array_filter($values, fn($v) => !$this->isWindowsVirtualPrinter((string)$v)));
+    }
+
+    private function isWindowsVirtualPrinter(string $value): bool {
+        return (bool)preg_match('/\b(Adobe|Microsoft Print to PDF|Microsoft XPS Document Writer|Fax|OneNote|Send To OneNote|Print to File)\b/i', $value);
+    }
+
+    private function parsePrinterRecord(string $record): array {
+        $parts = array_values(array_filter(array_map('trim', preg_split('/\s*\/\s*/u', $record) ?: []), fn($v) => $v !== ''));
+        $out = ['name' => '', 'driver' => '', 'port' => '', 'duplex' => ''];
+
+        foreach ($parts as $part) {
+            if (preg_match('/^(?:name|printer|نام(?: چاپگر)?)\s*:\s*(.+)$/iu', $part, $m)) $out['name'] = trim($m[1]);
+            elseif (preg_match('/^(?:driver|درایور)\s*:\s*(.+)$/iu', $part, $m)) $out['driver'] = trim($m[1]);
+            elseif (preg_match('/^(?:port|پورت)\s*:\s*(.+)$/iu', $part, $m)) $out['port'] = trim($m[1]);
+            elseif (preg_match('/^(?:duplex|دورو|چاپ دورو)\s*:\s*(.+)$/iu', $part, $m)) $out['duplex'] = trim($m[1]);
+        }
+
+        if ($out['name'] === '' && isset($parts[0])) $out['name'] = $parts[0];
+        if ($out['driver'] === '' && isset($parts[1]) && !preg_match('/^(?:port|پورت|duplex|دورو)/iu', $parts[1])) $out['driver'] = $parts[1];
+        if ($out['port'] === '' && isset($parts[2]) && !preg_match('/^(?:duplex|دورو)/iu', $parts[2])) $out['port'] = $parts[2];
+        if ($out['duplex'] === '' && isset($parts[3])) $out['duplex'] = $parts[3];
+
+        return $out;
+    }
+
+    private function normalizeScannerData(array $row): array {
+        if (!array_key_exists('ScannerDetails', $row)) return $row;
+        $details = trim((string)$row['ScannerDetails']);
+        if ($details === '') return $row;
+        $records = array_values(array_filter(array_map('trim', preg_split('/\s*\|\|\s*/u', $details) ?: []), fn($v) => $v !== ''));
+        $row['ScannerDetails'] = implode(' || ', $records);
+        if (!isset($row['ScannerCount']) || trim((string)$row['ScannerCount']) === '') $row['ScannerCount'] = count($records);
+        return $row;
+    }
+
+
+    private function normalizeNetworkData(array $row): array {
+        foreach (['NetworkDetails','IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers'] as $key) {
+            if (!array_key_exists($key,$row)) continue;
+            $values=is_array($row[$key])?$row[$key]:$this->split((string)$row[$key]);
+            $values=array_values(array_filter(array_map('trim',$values),fn($v)=>$v!==''));
+            $row[$key]=$values;
+        }
+        if(isset($row['NetworkDetails']) && is_array($row['NetworkDetails'])){
+            $row['NetworkDetails']=array_values(array_filter($row['NetworkDetails'],fn($v)=>!$this->isWindowsVirtualAdapter((string)$v)));
+        }
+        foreach (['IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers'] as $key) {
+            if(isset($row[$key]) && is_array($row[$key])) $row[$key]=array_values(array_filter($row[$key],fn($v)=>!$this->isWindowsVirtualValue((string)$v)));
+        }
+        return $row;
+    }
+
+    private function isWindowsVirtualAdapter(string $value): bool {
+        return (bool)preg_match('/Microsoft (Wi-?Fi Direct|Kernel Debug|KM-TEST|Hyper-V|Loopback)|Hyper-V Virtual Ethernet|Teredo|ISATAP|6to4|Npcap Loopback|WAN Miniport|VirtualBox|VMware Virtual|Default Switch/i',$value);
+    }
+
+    private function isWindowsVirtualValue(string $value): bool {
+        $v=trim($value);
+        return $this->isWindowsVirtualAdapter($v) || (bool)preg_match('/^(127\\.|169\\.254\\.|0\\.0\\.0\\.0$|::1$|fe80::)/i',$v);
     }
 
     public static function arrayFields(): array { return self::ARRAY_FIELDS; }
@@ -74,7 +218,6 @@ final class CsvImporter {
 
     private function parseDiskDetails(string $value): array {
         $value=trim($value); if($value==='') return [];
-        // A disk record starts with a model followed by / <number> GB. This keeps commas in later fields from swallowing the next disk.
         $records=preg_split('/\s*,\s*(?=[^,\/]+\s*\/\s*[0-9]+(?:\.[0-9]+)?\s*GB\b)/iu',$value) ?: [$value];
         $out=[];
         foreach($records as $i=>$text) {
