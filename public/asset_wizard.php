@@ -11,7 +11,7 @@ if($step!=='review'&&!can_manage_asset_type($step,'create')){http_response_code(
 $importer=new CsvImporter();$arrayFields=CsvImporter::arrayFields();$error=null;
 $usageMap=['BootCount'=>'boot_count','NormalShutdownCount'=>'normal_shutdown_count','UnexpectedShutdownCount'=>'unexpected_shutdown_count','UserShutdownCount'=>'user_shutdown_count','LastBootTime'=>'last_boot_time','LastShutdownTime'=>'last_shutdown_time','CompletedSessionCount'=>'completed_session_count','CurrentSessionHours'=>'current_session_hours','CurrentSessionDuration'=>'current_session_duration','TotalUsageHours'=>'total_usage_hours','TotalUsageDuration'=>'total_usage_duration','AverageSessionHours'=>'average_session_hours','AverageSessionDuration'=>'average_session_duration','LongestSessionHours'=>'longest_session_hours','LongestSessionDuration'=>'longest_session_duration','CollectedAt'=>'collected_at'];
 $labels=['ComputerName'=>'نام کامپیوتر','UserName'=>'کاربر','Manufacturer'=>'سازنده','Model'=>'مدل','SystemType'=>'نوع سیستم','SystemSerial'=>'سریال سیستم','SystemUUID'=>'UUID','Domain'=>'دامین / Workgroup','OSName'=>'سیستم‌عامل','OSVersion'=>'نسخه سیستم‌عامل','OSBuild'=>'Build','OSArchitecture'=>'معماری','CPUName'=>'پردازنده','CPUManufacturer'=>'سازنده CPU','CPUCores'=>'هسته فیزیکی','CPULogicalProcessors'=>'پردازنده منطقی','CPUMaxClockMHz'=>'فرکانس CPU','RAMTotalGB'=>'RAM کل','RAMSlotCount'=>'تعداد اسلات RAM','RAMInstalledSlots'=>'اسلات‌های پر','RAMType'=>'نوع RAM','RAMSlotDetails'=>'جزئیات RAM','MotherboardManufacturer'=>'سازنده مادربرد','MotherboardProduct'=>'مدل مادربرد','MotherboardVersion'=>'نسخه مادربرد','MotherboardSerial'=>'سریال مادربرد','BIOSManufacturer'=>'سازنده BIOS','BIOSVersion'=>'نسخه BIOS','BIOSSerial'=>'سریال BIOS','BIOSReleaseDate'=>'تاریخ BIOS','DiskDetails'=>'دیسک‌ها','LogicalDriveDetails'=>'درایوهای منطقی','NetworkDetails'=>'جزئیات کامل شبکه','GPUDetails'=>'کارت گرافیک','SoundDetails'=>'صدا','PageFileDetails'=>'Page File','AntivirusDetails'=>'آنتی‌ویروس','MonitorDetails'=>'اطلاعات نمایشگر','PrinterCount'=>'تعداد چاپگر','DefaultPrinterName'=>'چاپگر پیش‌فرض','PrinterNames'=>'نام چاپگر','PrinterPorts'=>'پورت','PrinterDrivers'=>'درایور','DuplexPrinters'=>'چاپ دورو','PrinterDetails'=>'جزئیات چاپگر','ScannerCount'=>'تعداد اسکنر','ScannerNames'=>'نام اسکنر','ScannerManufacturers'=>'سازنده اسکنر','ScannerDetails'=>'جزئیات اسکنر','PrinterType'=>'نوع چاپگر','PrinterCapabilities'=>'قابلیت‌ها','ColorMode'=>'رنگی/سیاه‌وسفید','Connection'=>'اتصال','NetworkSharing'=>'اشتراک شبکه','Duplex'=>'چاپ دورو','DisplayTechnology'=>'فناوری نمایشگر','DisplaySize'=>'اندازه نمایشگر','DisplayResolution'=>'رزولوشن','DisplaySerial'=>'سریال نمایشگر','ScannerType'=>'نوع اسکنر','ScannerResolution'=>'رزولوشن اسکنر','ScannerConnection'=>'اتصال اسکنر','ScannerDuplex'=>'اسکن دورو'];
-$stageFields=['printer'=>['PrinterCount','DefaultPrinterName','PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','PrinterDetails','PrinterType','PrinterCapabilities','ColorMode','Connection','NetworkSharing','Duplex'],'scanner'=>['ScannerCount','ScannerNames','ScannerManufacturers','ScannerDetails','ScannerType','ScannerResolution','ScannerConnection','ScannerDuplex']];
+$stageFields=['printer'=>['PrinterCount','DefaultPrinterName','PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','PrinterDetails','PrinterManufacturer','PrinterModel','PrinterSerial','PrinterIPAddresses','PrinterMACAddresses','PrinterType','PrinterCapabilities','ColorMode','Connection','NetworkSharing','Duplex'],'scanner'=>['ScannerCount','ScannerNames','ScannerManufacturers','ScannerDetails','ScannerType','ScannerResolution','ScannerConnection','ScannerDuplex']];
 function wl(string $k):string{global $labels,$usageMap;return $labels[$k]??$usageMap[$k]??$k;}
 function wv(mixed $v):string{return is_array($v)?(string)json_encode($v,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT):(string)$v;}
 function parseDateTimeValue(mixed $v):?string{
@@ -29,9 +29,29 @@ function splitHardwareRecords(array $row,string $type,CsvImporter $importer):arr
  if($type==='computer')return [$row];
  if($type==='printer'){
   $details=trim((string)($row['PrinterDetails']??''));$parts=array_values(array_filter(array_map('trim',preg_split('/\s*\|\|\s*/u',$details)?:[])));
-  if(!$parts){$names=$row['PrinterNames']??[];$parts=is_array($names)?$names:[];}
-  if(!$parts)return [];
-  $out=[];foreach($parts as $i=>$part){$r=$row;$r['PrinterDetails']=$part;$name=trim((string)preg_split('/\s*\/\s*/u',$part,2)[0]);$r['PrinterNames']=$name!==''?[$name]:[];$r['PrinterCount']=1;$r['DefaultPrinterName']=$name;$r['_unit_index']=$i+1;$out[]=$r;}return $out;
+  $printerLists=[];
+  foreach(['PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','PrinterIPAddresses','PrinterMACAddresses'] as $k){
+   $v=$row[$k]??[];$printerLists[$k]=is_array($v)?array_values($v):($v!==''?[$v]:[]);
+  }
+  $count=max(count($parts),...array_map('count',$printerLists));
+  if($count===0)return [];
+  $out=[];
+  for($i=0;$i<$count;$i++){
+   $r=$row;
+   $part=$parts[$i]??'';
+   $name=trim((string)($printerLists['PrinterNames'][$i]??''));
+   if($name==='')$name=trim((string)preg_split('/\s*\/\s*/u',$part,2)[0]);
+   $r['PrinterDetails']=$part;
+   $r['PrinterNames']=$name!==''?[$name]:[];
+   foreach($printerLists as $k=>$list)$r[$k]=isset($list[$i])?[$list[$i]]:[];
+   $r['PrinterCount']=1;$r['DefaultPrinterName']=$name;
+   $r['PrinterName']=$name;
+   $r['PrinterManufacturer']=$r['PrinterManufacturer']??$r['Manufacturer']??'';
+   $r['PrinterModel']=$r['PrinterModel']??$r['Model']??'';
+   $r['PrinterSerial']=$r['PrinterSerial']??$r['SystemSerial']??'';
+   $r['_unit_index']=$i+1;$out[]=$r;
+  }
+  return $out;
  }
  if($type==='scanner'){
   $details=trim((string)($row['ScannerDetails']??''));$parts=array_values(array_filter(array_map('trim',preg_split('/\s*\|\|\s*/u',$details)?:[])));
@@ -93,7 +113,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
    foreach($all as [$type,$r]){
     $technical=[];foreach($r as $k=>$v){if($k===''||$k[0]==='_'||isset($usageMap[$k])||in_array($k,['asset_no','location','personnel_id'],true))continue;if($type==='computer'&&in_array($k,['IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers','MonitorDetails'],true))continue;if(isset($stageFields[$type])&&!in_array($k,$stageFields[$type],true))continue;$technical[$k]=$v;}
     if($type==='display'&&isset($r['MonitorDetails']))$technical['MonitorDetails']=$r['MonitorDetails'];
-    $hostname=$r['ComputerName']??$r['PrinterName']??$r['ScannerName']??$r['DisplayName']??null;$manufacturer=$r['Manufacturer']??$r['PrinterManufacturer']??$r['ScannerManufacturer']??$r['DisplayManufacturer']??'';$model=$r['Model']??$r['PrinterModel']??$r['ScannerModel']??$r['DisplayModel']??'';$serial=$r['SystemSerial']??$r['PrinterSerial']??$r['ScannerSerial']??$r['DisplaySerial']??'';
+    $hostname=$r['ComputerName']??$r['PrinterName']??$r['ScannerName']??$r['DisplayName']??null;$manufacturer=$r['PrinterManufacturer']??$r['Manufacturer']??$r['ScannerManufacturer']??$r['DisplayManufacturer']??'';$model=$r['PrinterModel']??$r['Model']??$r['ScannerModel']??$r['DisplayModel']??'';$serial=$r['PrinterSerial']??$r['SystemSerial']??$r['ScannerSerial']??$r['DisplaySerial']??'';
     $q=$db->prepare('SELECT asset_no FROM assets WHERE asset_no=?');$q->execute([$r['asset_no']]);if($q->fetchColumn())throw new RuntimeException('شماره اموال '.$r['asset_no'].' قبلاً ثبت شده است.');
     $q=$db->prepare('INSERT INTO assets(asset_no,asset_type,device_subtype,hostname,personnel_id,location,manufacturer,model,serial_no,technical,status,source_file,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)');$q->execute([$r['asset_no'],$type,$r['device_subtype']??null,$hostname,($r['personnel_id']??'')!==''?(int)$r['personnel_id']:null,$r['location'],$manufacturer,$model,$serial,json_encode($technical,JSON_UNESCAPED_UNICODE|JSON_INVALID_UTF8_SUBSTITUTE),'active',$r['_source_file']??null,user()['id'],user()['id']]);
     if($type==='computer'){
