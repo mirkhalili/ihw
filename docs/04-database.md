@@ -22,14 +22,19 @@
 - created_at / updated_at
 
 ### personnel
-فهرست پرسنل همگام‌شده:
+فهرست پرسنل:
 - id
-- personnel_code unique nullable
-- national_id
+- first_name
+- last_name
+- national_id unique nullable: کلید کسب‌وکار ورود فایل
 - full_name
+- mobile
+- personnel_code unique nullable
 - department
 - position
 - extra JSON
+
+ورود CSV چهار ستون نام، نام خانوادگی، کدملی و تلفن همراه را می‌پذیرد. تطبیق فقط با کدملی انجام می‌شود؛ رکورد موجود update و رکورد جدید insert می‌شود.
 
 ### assets
 هسته تجهیزات:
@@ -131,3 +136,10 @@ migrationها باید به ترتیب منطقی نصب شوند. `006_usage_st
 
 ## تفکیک تجهیزات
 Printer/Scanner/Display هرکدام باید رکورد مستقل assets داشته باشند و personnel_id مستقل داشته باشند. usage_stats زمان‌ها را DATETIME نگه می‌دارد. Disk/RAM/usage_stats وابسته به asset هستند و cascade delete دارند.
+
+
+### مدیریت پرسنل در نسخه 0.1.0.7
+- personnel_import.php: ورود CSV و upsert بر اساس کدملی.
+- personnel_edit.php: ویرایش چهار فیلد اصلی.
+- personnel_delete.php: حذف با CSRF و ثبت audit؛ تجهیزات به علت FK با SET NULL بدون حذف باقی می‌مانند.
+- personnel_assets.php: نمایش تجهیزات اختصاص‌یافته به فرد در چهار دسته.
