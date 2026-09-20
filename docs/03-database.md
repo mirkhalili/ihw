@@ -208,13 +208,17 @@ DB فعلی `ihw` با charset/collation برابر utf8mb4 تعریف می‌ش
 
 کلید اصلی مرکب: `user_id + asset_type`.
 
-## 13. نکات migration
+## 13. migration ثبت سابقه
+
+فایل `database/migration_005_registration_history.sql` دو ستون `registration_ip` و `registration_at` را به `assets` اضافه و روی `registration_at` index ایجاد می‌کند. این migration برای نصب‌های موجودی که schema پایه آنها این دو ستون را ندارد الزامی است.
+
+## 14. نکات migration
 
 در نصب جدید schema کامل اجرا می‌شود.
 
 در نصب موجود migrationها باید طبق README و ترتیب نسخه فعلی اجرا شوند. هیچ migration قدیمی نباید بدون بررسی وضعیت DB دوباره اجرا شود.
 
-## 14. قواعد integrity
+## 15. قواعد integrity
 
 - asset_no باید دقیقاً ۷ رقم باشد.
 - asset_no در کل سامانه unique است.
