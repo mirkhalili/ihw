@@ -7,7 +7,7 @@ final class CsvImporter {
         'IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers',
         'RAMManufacturers','RAMPartNumbers','RAMSerialNumbers','RAMSpeedsMHz',
         'DiskModels','DiskSizesGB','DiskSerials','DiskInterfaces',
-        'PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','ScannerNames','ScannerManufacturers',
+        'PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','PrinterIPAddresses','PrinterMACAddresses','ScannerNames','ScannerManufacturers',
     ];
 
     public function rows(string $path): Generator {
@@ -53,6 +53,18 @@ final class CsvImporter {
                 $row[$key] = $this->commaList($value);
             } else {
                 $row[$key] = str_contains($value, '|') ? $this->split($value) : ($value === '' ? [] : [$value]);
+            }
+        }
+        foreach ([
+            'PrinterName' => 'PrinterNames',
+            'PrinterPort' => 'PrinterPorts',
+            'PrinterDriver' => 'PrinterDrivers',
+            'DuplexPrinter' => 'DuplexPrinters',
+            'PrinterIPAddress' => 'PrinterIPAddresses',
+            'PrinterMACAddress' => 'PrinterMACAddresses',
+        ] as $singular => $plural) {
+            if (!array_key_exists($plural, $row) && array_key_exists($singular, $row)) {
+                $row[$plural] = $row[$singular];
             }
         }
         $row = $this->normalizePrinterData($row);
