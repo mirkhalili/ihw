@@ -47,3 +47,6 @@ JavaScript به `asset_check.php?asset_no=...` درخواست می‌فرستد.
 
 ## نکته مهم
 Wizard فعلی بر مبنای یک CSV برای هر نوع مرحله طراحی شده است. انتقال خودکار MonitorDetails از CSV کامپیوتر به رکورد display باید در صورت نیاز طبق gap ثبت‌شده بررسی شود؛ صرف وجود MonitorDetails در computer CSV به‌معنی ثبت خودکار یک display نیست.
+
+## Multi-unit
+هر واحد شناسایی‌شده در مراحل printer/scanner/display ردیف مستقل دارد و شماره اموال، پرسنل و مکان جداگانه می‌گیرد. finish هر واحد را به assets مستقل تبدیل می‌کند.
