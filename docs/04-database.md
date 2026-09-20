@@ -128,3 +128,6 @@ migrationها باید به ترتیب منطقی نصب شوند. `006_usage_st
 - تعداد کامپیوترها: 2
 - تعداد رکوردهای usage_stats: 2
 این نتیجه مربوط به محیط آزمایشی کاربر است و بخشی از schema repository محسوب نمی‌شود.
+
+## تفکیک تجهیزات
+Printer/Scanner/Display هرکدام باید رکورد مستقل assets داشته باشند و personnel_id مستقل داشته باشند. usage_stats زمان‌ها را DATETIME نگه می‌دارد. Disk/RAM/usage_stats وابسته به asset هستند و cascade delete دارند.
