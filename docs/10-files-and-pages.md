@@ -38,7 +38,11 @@
 - asset_check.php: duplicate check
 - asset_wizard.php: workflow اصلی ثبت مرحله‌ای
 - users.php: مدیریت کاربران
-- personnel.php: پرسنل/AD
+- personnel.php: مدیریت فهرست پرسنل، جستجو، ویرایش، حذف و ورود فایل
+- personnel_import.php: ورود CSV پرسنل با upsert بر اساس کدملی
+- personnel_edit.php: ویرایش پرسنل
+- personnel_delete.php: حذف امن پرسنل
+- personnel_assets.php: فهرست تجهیزات اختصاص‌یافته به یک پرسنل
 - audit.php: رویدادها
 - report.php: گزارش
 - export.php: CSV export
