@@ -37,3 +37,6 @@ status یکی از active، repair، retired، lost است.
 3. جدول فرعی
 4. حذف از قرارداد داده با migration
 تصمیم باید در docs ثبت شود.
+
+## Multi-unit
+اگر CSV چند چاپگر یا اسکنر یا نمایشگر داشته باشد، هر واحد asset_no و personnel_id جدا دریافت می‌کند. آرایه‌های JSON، شبکه، RAM و Disk در asset_view به صورت کارت‌های responsive نمایش داده می‌شوند.
