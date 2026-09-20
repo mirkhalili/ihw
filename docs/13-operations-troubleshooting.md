@@ -48,3 +48,6 @@ CSRF token نامعتبر یا session از بین رفته است.
 - migrationهای اجراشده
 - نتیجه SHOW CREATE TABLE مربوط
 - بدون ثبت secret/password
+
+## خطاهای جدید
+1292 برای تاریخ AM/PM با normalize جدید برطرف می‌شود. TypeError تابع e با mixed شدن امضای تابع برطرف می‌شود. داده‌های legacy که همه تجهیزات را زیر computer ذخیره کرده‌اند باید با CSV منبع و تأیید اپراتور تفکیک شوند.
