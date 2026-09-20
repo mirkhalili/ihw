@@ -54,3 +54,22 @@
 - `database/` ساختار و migrationها
 - `storage/uploads/` فایل‌های منبع خصوصی
 - `bin/` ابزارهای مدیریتی خط فرمان
+
+
+## مستندات فنی و شرح خدمات
+
+مستندات کامل پروژه برای انتقال دانش به توسعه‌دهنده جدید یا عامل هوش مصنوعی در پوشه `docs/` قرار دارد:
+
+- `docs/README.md` — نقشه مستندات و مرجع نگهداری
+- `docs/01-architecture.md` — معماری و قراردادهای فنی
+- `docs/02-business-processes.md` — شرح خدمات و فرایندهای عملیاتی
+- `docs/03-database.md` — فرهنگ دیتابیس و روابط جداول
+- `docs/04-file-catalog.md` — شناسنامه فایل‌ها
+- `docs/05-csv-and-hardware-analysis.md` — CSV، HWiNFO، Disk، RAM و تجهیزات جانبی
+- `docs/06-auth-security.md` — امنیت و مجوزها
+- `docs/07-deployment-operations.md` — استقرار، Docker و Active Directory
+- `docs/08-testing-and-acceptance.md` — تست و معیار پذیرش
+- `docs/09-continuation-guide.md` — راهنمای ادامه توسعه برای انسان/AI
+- `docs/10-change-log.md` — قرارداد نسخه‌بندی و ثبت تغییرات
+
+این مستندات باید همزمان با تغییرات کد و دیتابیس به‌روزرسانی شوند.
