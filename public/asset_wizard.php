@@ -43,6 +43,7 @@ function splitHardwareRecords(array $row,string $type,CsvImporter $importer):arr
  if(!$parts&&$details!=='')$parts=[$details];if(!$parts)return [];$out=[];foreach($parts as $i=>$part){$r=$row;$r['MonitorDetails']=$part;$r['_unit_index']=$i+1;$out[]=$r;}return $out;
 }
 $wizard=$_SESSION['_hardware_wizard']??['records'=>[]];
+$visibleSteps=array_values(array_filter($steps,function(string $x)use($wizard){return $x==='computer'||!empty(stageRecords($wizard,$x));}));
 if(!empty($wizard['analysis']) && empty($wizard['records']['computer'])){$wizard['records']['computer']=[$wizard['analysis']];}
 if($_SERVER['REQUEST_METHOD']==='POST'){
  verify_csrf();$action=(string)($_POST['action']??'');
@@ -69,7 +70,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
   }catch(Throwable $e){$error=$e->getMessage();}
  }
  if($step!=='review'&&$action==='skip'){
-  $wizard['records'][$step]=[];$_SESSION['_hardware_wizard']=$wizard;$i=array_search($step,$steps,true);redirect($i<count($steps)-1?'asset_wizard.php?step='.$steps[$i+1]:'asset_wizard.php?step=review');
+  $wizard['records'][$step]=[];$_SESSION['_hardware_wizard']=$wizard;$i=array_search($step,$visibleSteps,true);redirect($i!==false&&$i<count($visibleSteps)-1?'asset_wizard.php?step='.$visibleSteps[$i+1]:'asset_wizard.php?step=review');
  }
  if($step!=='review'&&$action==='next'){
   $records=stageRecords($wizard,$step);$posted=(array)($_POST['records']??[]);
