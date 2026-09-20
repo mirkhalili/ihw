@@ -56,6 +56,7 @@ final class CsvImporter {
             }
         }
         $row = $this->normalizePrinterData($row);
+        $row = $this->normalizeNetworkData($row);
         $row = $this->normalizeScannerData($row);
         return $row;
     }
@@ -90,6 +91,32 @@ final class CsvImporter {
         $row['ScannerDetails'] = implode(' || ', $records);
         if (!isset($row['ScannerCount']) || trim((string)$row['ScannerCount']) === '') $row['ScannerCount'] = count($records);
         return $row;
+    }
+
+
+    private function normalizeNetworkData(array $row): array {
+        foreach (['NetworkDetails','IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers'] as $key) {
+            if (!array_key_exists($key,$row)) continue;
+            $values=is_array($row[$key])?$row[$key]:$this->split((string)$row[$key]);
+            $values=array_values(array_filter(array_map('trim',$values),fn($v)=>$v!==''));
+            $row[$key]=$values;
+        }
+        if(isset($row['NetworkDetails']) && is_array($row['NetworkDetails'])){
+            $row['NetworkDetails']=array_values(array_filter($row['NetworkDetails'],fn($v)=>!$this->isWindowsVirtualAdapter((string)$v)));
+        }
+        foreach (['IPAddresses','MACAddresses','SubnetMasks','Gateways','DNSServers'] as $key) {
+            if(isset($row[$key]) && is_array($row[$key])) $row[$key]=array_values(array_filter($row[$key],fn($v)=>!$this->isWindowsVirtualValue((string)$v)));
+        }
+        return $row;
+    }
+
+    private function isWindowsVirtualAdapter(string $value): bool {
+        return (bool)preg_match('/Microsoft (Wi-?Fi Direct|Kernel Debug|KM-TEST|Hyper-V|Loopback)|Hyper-V Virtual Ethernet|Teredo|ISATAP|6to4|Npcap Loopback|WAN Miniport|VirtualBox|VMware Virtual|Default Switch/i',$value);
+    }
+
+    private function isWindowsVirtualValue(string $value): bool {
+        $v=trim($value);
+        return $this->isWindowsVirtualAdapter($v) || (bool)preg_match('/^(127\\.|169\\.254\\.|0\\.0\\.0\\.0$|::1$|fe80::)/i',$v);
     }
 
     public static function arrayFields(): array { return self::ARRAY_FIELDS; }
