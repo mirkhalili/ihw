@@ -60,3 +60,6 @@ SHOW CREATE TABLE usage_stats;
 
 ## 9. تست فعلی انجام‌شده
 در محیط آزمایشی اخیر، انتقال usage با موفقیت انجام شد و دو رکورد usage_stats ایجاد شد.
+
+## تست‌های جدید
+تاریخ 9/14/2026 11:14:14 AM نباید خطای 1292 بدهد. دو PrinterDetails باید دو asset مستقل با asset_no و personnel مستقل بسازند. همین قاعده برای Scanner و Display برقرار است. حذف باید CSRF/permission/audit را رعایت کند. مقدار عددی در view نباید TypeError بدهد.
