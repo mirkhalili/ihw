@@ -11,7 +11,7 @@ if($step!=='review'&&!can_manage_asset_type($step,'create')){http_response_code(
 $importer=new CsvImporter();$arrayFields=CsvImporter::arrayFields();$error=null;
 $usageMap=['BootCount'=>'boot_count','NormalShutdownCount'=>'normal_shutdown_count','UnexpectedShutdownCount'=>'unexpected_shutdown_count','UserShutdownCount'=>'user_shutdown_count','LastBootTime'=>'last_boot_time','LastShutdownTime'=>'last_shutdown_time','CompletedSessionCount'=>'completed_session_count','CurrentSessionHours'=>'current_session_hours','CurrentSessionDuration'=>'current_session_duration','TotalUsageHours'=>'total_usage_hours','TotalUsageDuration'=>'total_usage_duration','AverageSessionHours'=>'average_session_hours','AverageSessionDuration'=>'average_session_duration','LongestSessionHours'=>'longest_session_hours','LongestSessionDuration'=>'longest_session_duration','CollectedAt'=>'collected_at'];
 $labels=['ComputerName'=>'نام کامپیوتر','UserName'=>'کاربر','Manufacturer'=>'سازنده','Model'=>'مدل','SystemType'=>'نوع سیستم','SystemSerial'=>'سریال سیستم','SystemUUID'=>'UUID','Domain'=>'دامین / Workgroup','OSName'=>'سیستم‌عامل','OSVersion'=>'نسخه سیستم‌عامل','OSBuild'=>'Build','OSArchitecture'=>'معماری','CPUName'=>'پردازنده','CPUManufacturer'=>'سازنده CPU','CPUCores'=>'هسته فیزیکی','CPULogicalProcessors'=>'پردازنده منطقی','CPUMaxClockMHz'=>'فرکانس CPU','RAMTotalGB'=>'RAM کل','RAMSlotCount'=>'تعداد اسلات RAM','RAMInstalledSlots'=>'اسلات‌های پر','RAMType'=>'نوع RAM','RAMSlotDetails'=>'جزئیات RAM','MotherboardManufacturer'=>'سازنده مادربرد','MotherboardProduct'=>'مدل مادربرد','MotherboardVersion'=>'نسخه مادربرد','MotherboardSerial'=>'سریال مادربرد','BIOSManufacturer'=>'سازنده BIOS','BIOSVersion'=>'نسخه BIOS','BIOSSerial'=>'سریال BIOS','BIOSReleaseDate'=>'تاریخ BIOS','DiskDetails'=>'دیسک‌ها','LogicalDriveDetails'=>'درایوهای منطقی','NetworkDetails'=>'جزئیات کامل شبکه','GPUDetails'=>'کارت گرافیک','SoundDetails'=>'صدا','PageFileDetails'=>'Page File','AntivirusDetails'=>'آنتی‌ویروس','MonitorDetails'=>'اطلاعات نمایشگر','PrinterCount'=>'تعداد چاپگر','DefaultPrinterName'=>'چاپگر پیش‌فرض','PrinterNames'=>'نام چاپگر','PrinterPorts'=>'پورت','PrinterDrivers'=>'درایور','DuplexPrinters'=>'چاپ دورو','PrinterDetails'=>'جزئیات چاپگر','ScannerCount'=>'تعداد اسکنر','ScannerNames'=>'نام اسکنر','ScannerManufacturers'=>'سازنده اسکنر','ScannerDetails'=>'جزئیات اسکنر','PrinterType'=>'نوع چاپگر','PrinterCapabilities'=>'قابلیت‌ها','ColorMode'=>'رنگی/سیاه‌وسفید','Connection'=>'اتصال','NetworkSharing'=>'اشتراک شبکه','Duplex'=>'چاپ دورو','DisplayTechnology'=>'فناوری نمایشگر','DisplaySize'=>'اندازه نمایشگر','DisplayResolution'=>'رزولوشن','DisplaySerial'=>'سریال نمایشگر','ScannerType'=>'نوع اسکنر','ScannerResolution'=>'رزولوشن اسکنر','ScannerConnection'=>'اتصال اسکنر','ScannerDuplex'=>'اسکن دورو'];
-$stageFields=['printer'=>['PrinterCount','DefaultPrinterName','PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','PrinterDetails'],'scanner'=>['ScannerCount','ScannerNames','ScannerManufacturers','ScannerDetails']];
+$stageFields=['printer'=>['PrinterCount','DefaultPrinterName','PrinterNames','PrinterPorts','PrinterDrivers','DuplexPrinters','PrinterDetails','PrinterType','PrinterCapabilities','ColorMode','Connection','NetworkSharing','Duplex'],'scanner'=>['ScannerCount','ScannerNames','ScannerManufacturers','ScannerDetails','ScannerType','ScannerResolution','ScannerConnection','ScannerDuplex']];
 function wl(string $k):string{global $labels,$usageMap;return $labels[$k]??$usageMap[$k]??$k;}
 function wv(mixed $v):string{return is_array($v)?(string)json_encode($v,JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT):(string)$v;}
 function parseDateTimeValue(mixed $v):?string{
@@ -30,15 +30,17 @@ function splitHardwareRecords(array $row,string $type,CsvImporter $importer):arr
  if($type==='printer'){
   $details=trim((string)($row['PrinterDetails']??''));$parts=array_values(array_filter(array_map('trim',preg_split('/\s*\|\|\s*/u',$details)?:[])));
   if(!$parts){$names=$row['PrinterNames']??[];$parts=is_array($names)?$names:[];}
+  if(!$parts)return [];
   $out=[];foreach($parts as $i=>$part){$r=$row;$r['PrinterDetails']=$part;$name=trim((string)preg_split('/\s*\/\s*/u',$part,2)[0]);$r['PrinterNames']=$name!==''?[$name]:[];$r['PrinterCount']=1;$r['DefaultPrinterName']=$name;$r['_unit_index']=$i+1;$out[]=$r;}return $out;
  }
  if($type==='scanner'){
   $details=trim((string)($row['ScannerDetails']??''));$parts=array_values(array_filter(array_map('trim',preg_split('/\s*\|\|\s*/u',$details)?:[])));
   if(!$parts){$names=$row['ScannerNames']??[];$parts=is_array($names)?$names:[];}
+  if(!$parts)return [];
   $out=[];foreach($parts as $i=>$part){$r=$row;$r['ScannerDetails']=$part;$name=trim((string)preg_split('/\s*\/\s*/u',$part,2)[0]);$r['ScannerNames']=$name!==''?[$name]:[];$r['ScannerCount']=1;$r['_unit_index']=$i+1;$out[]=$r;}return $out;
  }
  $details=trim((string)($row['MonitorDetails']??''));$parts=array_values(array_filter(array_map('trim',preg_split('/\s*\|\|\s*/u',$details)?:[])));
- if(!$parts&&$details!=='')$parts=[$details];$out=[];foreach($parts as $i=>$part){$r=$row;$r['MonitorDetails']=$part;$r['_unit_index']=$i+1;$out[]=$r;}return $out;
+ if(!$parts&&$details!=='')$parts=[$details];if(!$parts)return [];$out=[];foreach($parts as $i=>$part){$r=$row;$r['MonitorDetails']=$part;$r['_unit_index']=$i+1;$out[]=$r;}return $out;
 }
 $wizard=$_SESSION['_hardware_wizard']??['records'=>[]];
 if(!empty($wizard['analysis']) && empty($wizard['records']['computer'])){$wizard['records']['computer']=[$wizard['analysis']];}
