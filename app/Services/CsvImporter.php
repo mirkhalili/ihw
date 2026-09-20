@@ -67,27 +67,86 @@ final class CsvImporter {
     }
 
     private function normalizePrinterData(array $row): array {
-        $details = trim((string)($row['PrinterDetails'] ?? ''));
-        $records = $details === '' ? [] : array_values(array_filter(array_map('trim', preg_split('/\s*\|\|\s*/u', $details) ?: []), fn($v) => $v !== ''));
-        $kept=[];
-        foreach($records as $record){
-            $name=trim((string)preg_split('/\s*\/\s*/u',$record,2)[0]);
-            if($name!=='' && preg_match('/\b(Adobe|Microsoft Print to PDF|Microsoft XPS Document Writer|Fax|OneNote|Send To OneNote|Print to File)\b/i',$name))continue;
-            $kept[]=$record;
+        $detailsValue = $row['PrinterDetails'] ?? '';
+        $details = is_array($detailsValue) ? implode(' || ', array_map('strval', $detailsValue)) : trim((string)$detailsValue);
+        $records = $details === '' ? [] : array_values(array_filter(
+            array_map('trim', preg_split('/\s*\|\|\s*/u', $details) ?: []),
+            fn($v) => $v !== ''
+        ));
+
+        $names = $this->listValue($row['PrinterNames'] ?? []);
+        $ports = $this->listValue($row['PrinterPorts'] ?? []);
+        $drivers = $this->listValue($row['PrinterDrivers'] ?? []);
+        $duplex = $this->listValue($row['DuplexPrinters'] ?? []);
+
+        $kept = [];
+        foreach ($records as $record) {
+            $parsed = $this->parsePrinterRecord($record);
+            $name = $parsed['name'];
+            if ($name !== '' && $this->isWindowsVirtualPrinter($name)) continue;
+            $kept[] = $record;
         }
-        $row['PrinterDetails']=implode(' || ',$kept);
-        $row['PrinterCount']=count($kept);
-        $row['PrinterNames']=$this->commaList((string)($row['PrinterNames']??''));
-        $row['PrinterPorts']=$this->commaList((string)($row['PrinterPorts']??''));
-        $row['PrinterDrivers']=$this->commaList((string)($row['PrinterDrivers']??''));
-        $row['DuplexPrinters']=$this->commaList((string)($row['DuplexPrinters']??''));
-        if(isset($row['DefaultPrinterName']) && preg_match('/\b(Adobe|Microsoft Print to PDF|Microsoft XPS Document Writer|Fax|OneNote)\b/i',(string)$row['DefaultPrinterName']))$row['DefaultPrinterName']='';
-        foreach($kept as $i=>$record){
-            $parts=array_map('trim',preg_split('/\s*\/\s*/u',$record)?:[]);
-            if(isset($parts[0]) && $parts[0]!=='' && !isset($row['PrinterNames'][$i]))$row['PrinterNames'][$i]=$parts[0];
-            if(isset($parts[1]) && $parts[1]!=='' && !isset($row['PrinterDrivers'][$i]))$row['PrinterDrivers'][$i]=$parts[1];
+
+        foreach ($kept as $i => $record) {
+            $parsed = $this->parsePrinterRecord($record);
+            if ($parsed['name'] !== '' && !isset($names[$i])) $names[$i] = $parsed['name'];
+            if ($parsed['driver'] !== '' && !isset($drivers[$i])) $drivers[$i] = $parsed['driver'];
+            if ($parsed['port'] !== '' && !isset($ports[$i])) $ports[$i] = $parsed['port'];
+            if ($parsed['duplex'] !== '' && !isset($duplex[$i])) $duplex[$i] = $parsed['duplex'];
+        }
+
+        $row['PrinterDetails'] = implode(' || ', $kept);
+        $row['PrinterNames'] = $this->filterPrinterList($names);
+        $row['PrinterPorts'] = array_values($ports);
+        $row['PrinterDrivers'] = array_values($drivers);
+        $row['DuplexPrinters'] = array_values($duplex);
+
+        $row['PrinterCount'] = max(
+            count($kept), count($row['PrinterNames']), count($row['PrinterPorts']),
+            count($row['PrinterDrivers']), count($row['DuplexPrinters'])
+        );
+
+        if (isset($row['DefaultPrinterName'])) {
+            $default = is_array($row['DefaultPrinterName'])
+                ? (string)($row['DefaultPrinterName'][0] ?? '')
+                : trim((string)$row['DefaultPrinterName']);
+            $row['DefaultPrinterName'] = $this->isWindowsVirtualPrinter($default) ? '' : $default;
         }
         return $row;
+    }
+
+    private function listValue(mixed $value): array {
+        if (is_array($value)) {
+            return array_values(array_filter(array_map(fn($v) => trim((string)$v), $value), fn($v) => $v !== ''));
+        }
+        return $this->commaList(trim((string)$value));
+    }
+
+    private function filterPrinterList(array $values): array {
+        return array_values(array_filter($values, fn($v) => !$this->isWindowsVirtualPrinter((string)$v)));
+    }
+
+    private function isWindowsVirtualPrinter(string $value): bool {
+        return (bool)preg_match('/\b(Adobe|Microsoft Print to PDF|Microsoft XPS Document Writer|Fax|OneNote|Send To OneNote|Print to File)\b/i', $value);
+    }
+
+    private function parsePrinterRecord(string $record): array {
+        $parts = array_values(array_filter(array_map('trim', preg_split('/\s*\/\s*/u', $record) ?: []), fn($v) => $v !== ''));
+        $out = ['name' => '', 'driver' => '', 'port' => '', 'duplex' => ''];
+
+        foreach ($parts as $part) {
+            if (preg_match('/^(?:name|printer|نام(?: چاپگر)?)\s*:\s*(.+)$/iu', $part, $m)) $out['name'] = trim($m[1]);
+            elseif (preg_match('/^(?:driver|درایور)\s*:\s*(.+)$/iu', $part, $m)) $out['driver'] = trim($m[1]);
+            elseif (preg_match('/^(?:port|پورت)\s*:\s*(.+)$/iu', $part, $m)) $out['port'] = trim($m[1]);
+            elseif (preg_match('/^(?:duplex|دورو|چاپ دورو)\s*:\s*(.+)$/iu', $part, $m)) $out['duplex'] = trim($m[1]);
+        }
+
+        if ($out['name'] === '' && isset($parts[0])) $out['name'] = $parts[0];
+        if ($out['driver'] === '' && isset($parts[1]) && !preg_match('/^(?:port|پورت|duplex|دورو)/iu', $parts[1])) $out['driver'] = $parts[1];
+        if ($out['port'] === '' && isset($parts[2]) && !preg_match('/^(?:duplex|دورو)/iu', $parts[2])) $out['port'] = $parts[2];
+        if ($out['duplex'] === '' && isset($parts[3])) $out['duplex'] = $parts[3];
+
+        return $out;
     }
 
     private function normalizeScannerData(array $row): array {
