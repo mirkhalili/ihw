@@ -39,3 +39,6 @@ Importer نباید داده خام را با حدس خطرناک تغییر د�
 - تاریخ با format ناشناخته
 - DiskDetails غیر استاندارد
 - CSV بدون header
+
+## تفکیک چند واحد
+PrinterDetails و ScannerDetails با || به واحدهای مستقل تقسیم می‌شوند؛ در نبود آن‌ها Names مبناست. MonitorDetails نیز برای display unitها تفکیک می‌شود. کامپیوتر واحد اصلی است. تاریخ raw در importer حفظ می‌شود و هنگام درج usage normalize می‌شود.
