@@ -67,19 +67,26 @@ final class CsvImporter {
     }
 
     private function normalizePrinterData(array $row): array {
-        if (!array_key_exists('PrinterDetails', $row)) return $row;
-        $details = trim((string)$row['PrinterDetails']);
-        if ($details === '') return $row;
-        $records = array_values(array_filter(array_map('trim', preg_split('/\s*\|\|\s*/u', $details) ?: []), fn($v) => $v !== ''));
-        $kept = [];
-        foreach ($records as $record) {
-            $name = trim((string)preg_split('/\s*\/\s*/u', $record, 2)[0]);
-            if ($name !== '' && preg_match('/\bAdobe\b/i', $name)) continue;
-            $kept[] = $record;
+        $details = trim((string)($row['PrinterDetails'] ?? ''));
+        $records = $details === '' ? [] : array_values(array_filter(array_map('trim', preg_split('/\s*\|\|\s*/u', $details) ?: []), fn($v) => $v !== ''));
+        $kept=[];
+        foreach($records as $record){
+            $name=trim((string)preg_split('/\s*\/\s*/u',$record,2)[0]);
+            if($name!=='' && preg_match('/\b(Adobe|Microsoft Print to PDF|Microsoft XPS Document Writer|Fax|OneNote|Send To OneNote|Print to File)\b/i',$name))continue;
+            $kept[]=$record;
         }
-        $row['PrinterDetails'] = implode(' || ', $kept);
-        if (!isset($row['PrinterCount']) || trim((string)$row['PrinterCount']) === '') $row['PrinterCount'] = count($kept);
-        if (isset($row['DefaultPrinterName']) && preg_match('/\bAdobe\b/i', (string)$row['DefaultPrinterName'])) $row['DefaultPrinterName'] = '';
+        $row['PrinterDetails']=implode(' || ',$kept);
+        $row['PrinterCount']=count($kept);
+        $row['PrinterNames']=$this->commaList((string)($row['PrinterNames']??''));
+        $row['PrinterPorts']=$this->commaList((string)($row['PrinterPorts']??''));
+        $row['PrinterDrivers']=$this->commaList((string)($row['PrinterDrivers']??''));
+        $row['DuplexPrinters']=$this->commaList((string)($row['DuplexPrinters']??''));
+        if(isset($row['DefaultPrinterName']) && preg_match('/\b(Adobe|Microsoft Print to PDF|Microsoft XPS Document Writer|Fax|OneNote)\b/i',(string)$row['DefaultPrinterName']))$row['DefaultPrinterName']='';
+        foreach($kept as $i=>$record){
+            $parts=array_map('trim',preg_split('/\s*\/\s*/u',$record)?:[]);
+            if(isset($parts[0]) && $parts[0]!=='' && !isset($row['PrinterNames'][$i]))$row['PrinterNames'][$i]=$parts[0];
+            if(isset($parts[1]) && $parts[1]!=='' && !isset($row['PrinterDrivers'][$i]))$row['PrinterDrivers'][$i]=$parts[1];
+        }
         return $row;
     }
 
