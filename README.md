@@ -29,7 +29,7 @@
 ## نصب
 1. PHP 8.2+، MySQL 8+ و وب‌سروری با document root روی `public/` فراهم کنید.
 2. `database/schema.sql` را روی نصب جدید اجرا کنید.
-3. برای نصب موجود، migrationهای `001`، `002`، `003` و سپس `004_usage_stats.sql` را به ترتیب اجرا کنید.
+3. برای نصب موجود، migrationهای `001`، `002`، `003`، `004_usage_stats.sql` و سپس `005_registration_history.sql` را به ترتیب اجرا کنید.
 4. PHP باید افزونه LDAP را فعال داشته باشد (`ldap` و در صورت استفاده از LDAPS، گواهی CA معتبر سرور).
 5. مقادیر اتصال DB را با متغیرهای `IHW_DB_DSN`، `IHW_DB_USER` و `IHW_DB_PASS` تنظیم کنید.
 6. برای ساخت مدیر: `php bin/create_admin.php admin 'رمز-حداقل-۸-کاراکتر' 'مدیر سامانه'`
