@@ -57,3 +57,6 @@
 4. input validation داشته باشد
 5. audit در عملیات مهم داشته باشد
 6. docs مربوطه را به‌روز کند.
+
+## فایل جدید
+asset_delete.php endpoint حذف امن تجهیز است. asset_view.php اکنون کارت‌های اطلاعاتی JSON/Disk/RAM و دکمه حذف دارد.
